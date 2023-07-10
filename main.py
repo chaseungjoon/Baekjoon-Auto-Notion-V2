@@ -1,19 +1,26 @@
 import requests
 import openai
-import glob
-import os
 import keys
 from langs import langs
+from bs4 import BeautifulSoup
+from fake_useragent import UserAgent
 from notion.client import NotionClient
 from notion.block import CodeBlock
 from notion.block import PageBlock
 from notion.block import TextBlock
 from notion.block import CalloutBlock
 
-code_path = '/Users/chaseungjun/Desktop/Code/Python/Baekjoon'
 openai.api_key = keys.openai
 notion_token_v2 = keys.token
 notion_page_id = keys.page_id
+
+# create user_agent for data scraping
+ua = UserAgent()
+user_agent = ua.random
+headers = {
+    'User-Agent': user_agent
+}
+
 def code_comments(param):
     try:
         response = openai.ChatCompletion.create(
@@ -39,23 +46,48 @@ def get_problem(prob_n):
     except:
         print("Solved.ac API ERROR!")
         return
-    return response.json()
-
-def extract_prob_info(data):
+    data = response.json()
     problemId = data['problemId']
     titleKo = data['titleKo']
     level = data['level']
     tags = [tag['displayNames'][0]['name'] for tag in data['tags']]
     return [problemId, titleKo, level, tags]
 
-def save_file_list(path):
-    file_list = []
-    for root, dirs, files in os.walk(path):
-        for file_name in files:
-            file_list.append(root + '/' + file_name)
-    return file_list
+def get_code(code_link):
+    with requests.Session() as session:
 
-def post_page(problem_info, submit_code, client):
+        r = session.get(code_link, headers=headers)
+        soup = BeautifulSoup(r.text,'html.parser')
+
+        h1_tag = soup.find('h1', class_="pull-left")
+        a_tag = h1_tag.find('a', href=lambda x: x and '/problem/' in x)
+
+        if a_tag:
+            href_value = a_tag['href']
+            problem_number = href_value.split('/')[-1]
+
+        textarea_tag = soup.find('textarea', {'class': 'form-control no-mathjax codemirror-textarea'})
+        if textarea_tag:
+            source_code = textarea_tag.text
+
+        divs = soup.find_all('div', {'class': 'col-md-12'})
+
+        for div in divs:
+            headline_tag = div.find('div', {'class': 'headline'})
+            if headline_tag:
+                h2_tag = headline_tag.find('h2')
+                if h2_tag:
+                    lang = h2_tag.text
+                    code_lang = langs[lang]
+
+        return [problem_number, code_lang, source_code]
+
+def post_page(problem_info, submitted_code, code):
+    try:
+        client = NotionClient(token_v2=notion_token_v2)
+    except:
+        print("Notion Client Error!")
+        return
     page = client.get_block(notion_page_id)
 
     # page title
@@ -78,53 +110,24 @@ def post_page(problem_info, submit_code, client):
     callout.icon = "💡"
     callout.color = "gray_background"
 
-    # read code
-    submit_path = glob.glob(f'{code_path}/{problem_info[0]}.*')[0]
-    with open(submit_path, "r", encoding='utf-8') as f:
-        code_lines = f.readlines()
-    code_lines = ['    ' + line for line in code_lines]
+    # code indent first lines
+    code_lines = code.splitlines()
+    code_lines = ['\n    ' + line for line in code_lines]
     code = ''.join(code_lines)
 
     # code block
     new_code_block = new_page.children.add_new(CodeBlock)
     new_code_block.title = code
-    new_code_block.language = submit_code
+    new_code_block.language = submitted_code
 
     # code comments
     new_text_block = new_page.children.add_new(TextBlock)
     new_text_block.title = code_comments("\n".join(code_lines))
 
-def update_notion(f_list):
-    try:
-        client = NotionClient(token_v2=notion_token_v2)
-    except:
-        print("Notion Client Error!")
-        return
-    page = client.get_block(notion_page_id)
+    print(f'{problem_info[0]} 커밋 완료')
 
-    # get list of current pages in page
-    current_pages = []
-    for child in page.children:
-        if isinstance(child, PageBlock):
-            cut = child.title.index(' ')
-            current_pages.append(child.title[:cut])
+code_link = input("소스 코드 링크 >> ").strip()
 
-    for f_name in f_list:
-        f_name = f_name[::-1]
-        dot = f_name.index('.')
-        slash = f_name.index('/')
-
-        # get problem id
-        problem_id = f_name[dot + 1:slash][::-1]
-        if problem_id in current_pages:
-            continue
-
-        # get submit code
-        code_file = f_name[:dot + 1][::-1]
-        submit_code = langs[code_file]
-
-        problem_info = extract_prob_info(get_problem(problem_id))
-        post_page(problem_info, submit_code, client)
-
-f_list = save_file_list(code_path)
-update_notion(f_list)
+submit_info = get_code(code_link)
+problem_info = get_problem(submit_info[0])
+post_page(problem_info, submit_info[1], submit_info[2])
