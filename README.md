@@ -1,4 +1,4 @@
-# Baekjoon_Auto_Notion
+# Baekjoon_Auto_Notion_V2
 
 [이전 버전](https://github.com/chaseungjoon/Baekjoon-Auto-Notion)
 과 비슷하지만 코드를 따로 저장하지 않아도 되는 V2입니다.
