@@ -22,12 +22,12 @@
 
 #### 2)  git clone으로 프로젝트 다운로드
 ```
-git clone https://github.com/chaseungjoon/Baekjoon-Auto-Notion.git
+git clone https://github.com/chaseungjoon/Baekjoon-Auto-Notion-V2.git
 ```
 
 #### 3) 프로젝트 디렉토리로 이동
 ```
-cd Baekjoon-Auto-Notion
+cd Baekjoon-Auto-Notion-V2
 ```
 
 #### 4) 필요 패키지 다운로드
