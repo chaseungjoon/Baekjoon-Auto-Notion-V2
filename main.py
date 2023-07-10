@@ -9,6 +9,7 @@ from notion.block import CodeBlock
 from notion.block import PageBlock
 from notion.block import TextBlock
 from notion.block import CalloutBlock
+from notion.block import QuoteBlock
 
 openai.api_key = keys.openai
 notion_token_v2 = keys.token
@@ -80,9 +81,18 @@ def get_code(code_link):
                     lang = h2_tag.text
                     code_lang = langs[lang]
 
-        return [problem_number, code_lang, source_code]
+        tds = soup.find_all('td', {'class': 'text-center'})
+        info = []
+        for td in tds:
+            info.append(td.text)
+        extra_info=info[1:]
+        extra_info[0]=extra_info[0]+'KB'
+        extra_info[1]=extra_info[1]+'ms'
+        extra_info[2]=extra_info[2]+'B'
 
-def post_page(problem_info, submitted_code, code):
+        return [problem_number, code_lang, source_code,extra_info]
+
+def post_page(problem_info, submitted_code, code, extra_info):
     try:
         client = NotionClient(token_v2=notion_token_v2)
     except:
@@ -110,6 +120,15 @@ def post_page(problem_info, submitted_code, code):
     callout.icon = "💡"
     callout.color = "gray_background"
 
+    # New Line TextBlock
+    new_line = new_page.children.add_new(TextBlock)
+    new_line.title = '\n'
+
+    # Submit Info Callout
+    quote_info = f"**{'Memory   '+extra_info[0]:<50}{'Time   '+extra_info[1]:^0}{'Code Length   '+extra_info[2]:>50}**"
+    quote = new_page.children.add_new(QuoteBlock)
+    quote.title = quote_info
+
     # code indent first lines
     code_lines = code.splitlines()
     code_lines = ['\n    ' + line for line in code_lines]
@@ -127,7 +146,6 @@ def post_page(problem_info, submitted_code, code):
     print(f'{problem_info[0]} 커밋 완료')
 
 code_link = input("소스 코드 링크 >> ").strip()
-
 submit_info = get_code(code_link)
 problem_info = get_problem(submit_info[0])
-post_page(problem_info, submit_info[1], submit_info[2])
+post_page(problem_info, submit_info[1], submit_info[2],submit_info[3])
