@@ -1,5 +1,5 @@
 import requests
-import openai
+from openai import OpenAI
 import keys
 from langs import langs
 from bs4 import BeautifulSoup
@@ -11,7 +11,8 @@ from notion.block import TextBlock
 from notion.block import CalloutBlock
 from notion.block import QuoteBlock
 
-openai.api_key = keys.openai
+client = OpenAI()
+client.api_key = keys.openai
 notion_token_v2 = keys.token
 notion_page_id = keys.page_id
 
@@ -23,19 +24,15 @@ headers = {
 }
 
 def code_comments(param):
-    try:
-        response = openai.ChatCompletion.create(
-            model='gpt-4',
-            messages=[
-                {'role': 'system', 'content': ''},
-                {'role': 'user', 'content': "다음 코드의 작동 원리를 간결하게 한글로 설명해라 (말투는  \"~이다\"): " + param}
-            ],
-            temperature=0.4
-        )
-    except:
-        print("OpenAI API Error!")
-        return
-    return response['choices'][0]['message']['content']
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {'role': 'system', 'content': 'You are a helpful assistant.'},
+            {'role': 'user', 'content': f"다음 코드의 작동 원리를 간결하게 한글로 설명해라 (말투는 '~이다'): {param}"}
+        ],
+        temperature=0.4
+    )
+    return response.choices[0].message.content
 
 def get_problem(prob_n):
     url = "https://solved.ac/api/v3/problem/show"
